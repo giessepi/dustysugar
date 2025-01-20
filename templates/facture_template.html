@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture #{{ facture.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f4f4f4;
+        }
+        .total {
+            text-align: right;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Facture #{{ facture.id }}</h1>
+    <p><strong>Date :</strong> {{ facture.date_facture }}</p>
+    <p><strong>Client :</strong> 
+        {% if commande.client %}
+            {{ commande.client.nom }}
+        {% else %}
+            Non spécifié
+        {% endif %}
+    </p>
+    <h2>Détails des produits</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Produit</th>
+                <th>Quantité</th>
+                <th>Prix Unitaire</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for produit in commande.commande_produits.all %}
+            <tr>
+                <td>{{ produit.produit.nom }}</td>
+                <td>{{ produit.quantite }}</td>
+                <td>{{ produit.produit.prix }} TND</td>
+                <td>{{ produit.quantite|floatformat:2|add:0 }} TND</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h3 class="total">Total : {{ facture.montant_total }} TND</h3>
+</body>
+</html>
