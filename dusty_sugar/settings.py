@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-v4krgackk_ubajvqj*=l^3v5i#ci)0phe!gtssns7+@e&yu8d(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['dustysugar.tn', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['dustysugar.onrender.com', '127.0.0.1', 'localhost']
 
 
 # Application definition
