@@ -1,7 +1,8 @@
-from django.contrib import admin
-from django.urls import path, include
+from django.http import HttpResponse
+from django.urls import path
 
 urlpatterns = [
-    path('admin/', admin.site.urls),  # URL pour accéder à l'interface admin
-    path('api/', include('gestion.urls')),  # Inclure les URLs de gestion sous "/api/"
+    path('', lambda request: HttpResponse("Bienvenue sur Dusty Sugar!"), name='home'),
+    path('admin/', admin.site.urls),
+    # Ajoutez vos autres routes ici
 ]
