@@ -2,8 +2,15 @@ services:
   - type: web
     name: dusty-sugar
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000"
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+    startCommand: gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000
     envVars:
-      DJANGO_SETTINGS_MODULE: "dusty_sugar.settings"
-    staticPublishPath: "staticfiles"
+      - key: DJANGO_SECRET_KEY
+        value: "votre_cle_secrete"
+      - key: DATABASE_URL
+        value: "url_de_votre_base_de_donnees"
+      - key: DEBUG
+        value: "False"
