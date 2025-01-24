@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: dusty-sugar
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000"
+    envVars:
+      DJANGO_SETTINGS_MODULE: "dusty_sugar.settings"
+    staticPublishPath: "staticfiles"
