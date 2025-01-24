@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: dusty-sugar
+    env: python
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+    startCommand: "gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: dusty_sugar.settings
+      - key: SECRET_KEY
+        value: your-secret-key-here
+      - key: DEBUG
+        value: 'false'
+    staticPublishPath: staticfiles

@@ -27,6 +27,10 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['dustysugar.onrender.com', '127.0.0.1', 'localhost']
 
+MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    # autres middleware...
+]
 
 # Application definition
 
