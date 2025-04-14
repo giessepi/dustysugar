@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture #{{ facture.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        header h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+        header p {
+            font-size: 14px;
+            color: #777;
+        }
+        .details {
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f4f4f4;
+        }
+        .total {
+            margin-top: 20px;
+            text-align: right;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Facture</h1>
+        <p>Facture #{{ facture.id }}</p>
+    </header>
+
+    <div class="details">
+        <p><strong>Date :</strong> {{ facture.date_facture }}</p>
+        <p><strong>Client :</strong> {{ commande.client.nom if commande.client else "Non spécifié" }}</p>
+        <p><strong>Total :</strong> {{ facture.montant_total }} TND</p>
+    </div>
+
+    <h2>Détails de la commande</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Produit</th>
+                <th>Prix</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for produit in commande.produits.all %}
+            <tr>
+                <td>{{ produit.nom }}</td>
+                <td>{{ produit.prix }} TND</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="total">
+        Total : {{ facture.montant_total }} TND
+    </div>
+</body>
+</html>
