@@ -9,8 +9,8 @@ services:
     startCommand: gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000
     envVars:
       - key: DJANGO_SECRET_KEY
-        value: "votre_cle_secrete"
-      - key: DATABASE_URL
-        value: "url_de_votre_base_de_donnees"
+        value: "!l0^z5w(oxpabd@$$rv_(z!0ktzzc^bk8^5-*hf&c$(c)tm4)#"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: dusty-sugar.onrender.com
       - key: DEBUG
         value: "False"
