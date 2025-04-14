@@ -5,15 +5,15 @@ services:
     plan: free
     buildCommand: |
       pip install -r requirements.txt
-      python manage.py migrate       # ⬅️ migration forcée ici
+      python manage.py migrate
       python manage.py collectstatic --noinput
     startCommand: gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000
     envVars:
       - key: DJANGO_SECRET_KEY
-        value: "ta_clé_secrète"
+        fromEnvVar: DJANGO_SECRET_KEY
       - key: DEBUG
         value: "False"
       - key: DJANGO_ALLOWED_HOSTS
-        value: "dustysugar.onrender.com"
+        value: dusty-sugar.onrender.com
       - key: DATABASE_URL
-        value: "ta_base_postgres_sur_render"
+        fromEnvVar: DATABASE_URL
