@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from .models import Ingredient, Produit, ProduitIngredient, Client, Commande, CommandeProduit, Facture
 
 class ProduitIngredientInline(admin.TabularInline):
@@ -7,7 +8,7 @@ class ProduitIngredientInline(admin.TabularInline):
 
 class ProduitAdmin(admin.ModelAdmin):
     list_display = ('nom', 'prix')
-    inlines = [ProduitIngredientInline]  # Ajoute les ingrédients via le modèle intermédiaire
+    inlines = [ProduitIngredientInline]
 
 class ProduitIngredientAdmin(admin.ModelAdmin):
     list_display = ('produit', 'ingredient', 'quantite')
@@ -30,7 +31,13 @@ class CommandeAdmin(admin.ModelAdmin):
     inlines = [CommandeProduitInline]
 
 class FactureAdmin(admin.ModelAdmin):
-    list_display = ('id', 'commande', 'date_facture', 'montant_total')
+    list_display = ('id', 'commande', 'date_facture', 'montant_total', 'voir_pdf')
+
+    def voir_pdf(self, obj):
+        url = f"/factures/Facture_{obj.id}.pdf"
+        return format_html(f"<a href='{url}' target='_blank'>📄 Voir PDF</a>")
+
+    voir_pdf.short_description = "PDF"
 
 admin.site.register(Ingredient, IngredientAdmin)
 admin.site.register(Produit, ProduitAdmin)
