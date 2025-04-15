@@ -8,10 +8,10 @@ services:
       python manage.py makemigrations --noinput
       python manage.py migrate --noinput
       echo "from django.contrib.auth import get_user_model; \
-            User = get_user_model(); \
-            User.objects.create_superuser('admin', 'nalouti.youssef@gmail.com', 'admin1234') \
-            if not User.objects.filter(username='admin').exists() else print('Superuser already exists')" \
-            | python manage.py shell
+User = get_user_model(); \
+User.objects.create_superuser('admin', 'admin@example.com', 'admin1234') \
+if not User.objects.filter(username='admin').exists() else print('✅ Superuser already exists')" \
+| python manage.py shell
       python manage.py collectstatic --noinput
     startCommand: gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000
     envVars:
