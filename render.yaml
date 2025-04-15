@@ -5,13 +5,13 @@ services:
     plan: free
     buildCommand: |
       pip install -r requirements.txt
-      python manage.py makemigrations
-      python manage.py migrate
+      python manage.py makemigrations --noinput
+      python manage.py migrate --noinput
       python manage.py collectstatic --noinput
     startCommand: gunicorn dusty_sugar.wsgi:application --bind 0.0.0.0:8000
     envVars:
       - key: DJANGO_SECRET_KEY
-        value: "ta_clé_secrète_ici"  # remplace ici par ta vraie clé
+        value: "ta_clé_secrète_ici"
       - key: DEBUG
         value: "False"
       - key: DJANGO_ALLOWED_HOSTS
