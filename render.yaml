@@ -20,6 +20,6 @@ if not User.objects.filter(username='admin').exists() else print('✅ Superuser 
       - key: DEBUG
         value: "False"
       - key: DJANGO_ALLOWED_HOSTS
-        value: dustysugar.onrender.com
+        value: dustysugar.onrender.com,dustysugar.tn
       - key: DATABASE_URL
         value: "postgresql://dustysugar_db_user:EkvKujbk9eXwC2ezPBJi02Zcdg5bpBTR@dpg-cvu9agje5dus73chfak0-a/dustysugar_db"
