@@ -18,6 +18,6 @@ services:
       - key: DEBUG
         value: "False"
       - key: DJANGO_ALLOWED_HOSTS
-        value: dusty-sugar.onrender.com
+        value: dusty_sugar.onrender.com,localhost, 127.0.0.1
       - key: DATABASE_URL
         value: "postgresql://dustysugar_db_user:EkvKujbk9eXwC2ezPBJi02Zcdg5bpBTR@dpg-cvu9agje5dus73chfak0-a/dustysugar_db"
