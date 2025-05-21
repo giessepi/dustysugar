@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Résumé des commandes du {{ date_livraison }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        .total-global {
+            text-align: right;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Résumé des commandes à livrer le {{ date_livraison|date:"d F Y" }}</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Client</th>
+                <th>Produits</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for commande in commandes %}
+            <tr>
+                <td>{{ commande.client.nom }}</td>
+                <td>
+                    <ul>
+                        {% for produit in commande.commande_produits.all %}
+                        <li>{{ produit.produit.nom }} x {{ produit.quantite }}</li>
+                        {% endfor %}
+                    </ul>
+                </td>
+                <td>{{ commande.total|floatformat:2 }} TND</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="total-global">
+        Total global de la livraison : {{ total_global|floatformat:2 }} TND
+    </div>
+</body>
+</html>

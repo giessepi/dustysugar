@@ -10,4 +10,5 @@ router.register('factures', views.FactureViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('admin/generer-commandes-journalieres/', views.generer_commandes_journalieres_view, name='generer_commandes'),
 ]

@@ -1,9 +1,10 @@
+{% load tz %}
+{% load l10n %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facture #{{ facture.id }}</title>
+    <title>Bon de livraison Dusty Sugar</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -34,15 +35,22 @@
     </style>
 </head>
 <body>
-    <h1>Facture #{{ facture.id }}</h1>
-    <p><strong>Date :</strong> {{ facture.date_facture }}</p>
-    <p><strong>Client :</strong> 
+    <h1>Facture Dusty Sugar</h1>
+    <p><strong>Date de livraison :</strong>
+        {% if date_affichee %}
+            {{ date_affichee|date:"d F Y" }}
+        {% else %}
+            {{ now|date:"d F Y" }}
+        {% endif %}
+    </p>
+    <p><strong>Client :</strong>
         {% if commande.client %}
             {{ commande.client.nom }}
         {% else %}
             Non spécifié
         {% endif %}
     </p>
+
     <h2>Détails des produits</h2>
     <table>
         <thead>
@@ -58,12 +66,13 @@
             <tr>
                 <td>{{ produit.produit.nom }}</td>
                 <td>{{ produit.quantite }}</td>
-                <td>{{ produit.produit.prix }} TND</td>
-                <td>{{ produit.quantite|floatformat:2|add:0 }} TND</td>
+                <td>{{ produit.produit.prix|floatformat:2 }} TND</td>
+                <td>{{ produit.total_ligne|floatformat:2 }} TND</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <h3 class="total">Total : {{ facture.montant_total }} TND</h3>
+
+    <h3 class="total">Total : {{ facture.montant_total|floatformat:2 }} TND</h3>
 </body>
 </html>
