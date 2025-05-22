@@ -4,6 +4,7 @@ from django.template.loader import render_to_string
 from weasyprint import HTML
 import os
 from django.conf import settings
+from django.db.models import JSONField
 
 JOUR_CHOIX = [
     ('0', 'Lundi'),
@@ -218,3 +219,40 @@ class CompteClient(Client):
         proxy = True
         verbose_name = "Compte client"
         verbose_name_plural = "Comptes clients"
+
+class FactureCloturee(models.Model):
+    produits_json = models.JSONField(blank=True, null=True)
+    paiements_json = models.JSONField(blank=True, null=True)
+    client = models.ForeignKey('Client', on_delete=models.CASCADE, related_name='factures_cloturees')
+    date_facture = models.DateTimeField(default=now)
+    montant_total_commandes = models.FloatField()
+    montant_total_paye = models.FloatField()
+    commentaire = models.TextField(blank=True, null=True)
+
+    def generer_pdf(self):
+        file_name = f"FactureCloturee_{self.id}.pdf"
+        file_path = os.path.join(settings.BASE_DIR, 'factures_cloturees', file_name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        produits_details = self.produits_json or []
+        paiements_details = self.paiements_json or []
+
+
+        context = {
+            'facture': self,
+            'client': self.client,
+            'date_facture': self.date_facture,
+            'montant_total_commandes': self.montant_total_commandes,
+            'montant_total_paye': self.montant_total_paye,
+            'commentaire': self.commentaire,
+            'produits': produits_details,
+            'paiements': paiements_details
+        }
+
+        html = render_to_string("facture_cloturee_template.html", context)
+        HTML(string=html).write_pdf(file_path)
+
+        return file_path
+
+    def __str__(self):
+        return f"Facture clôturée - {self.client.nom} ({self.date_facture.date()})"

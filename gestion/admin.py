@@ -8,10 +8,13 @@ from weasyprint import HTML
 from .models import (
     Commande, Produit, Ingredient, ProduitIngredient,
     CommandeProduit, Client, Facture,
-    CommandeModele, CommandeModeleProduit, PaiementClient, CompteClient, Jour
+    CommandeModele, CommandeModeleProduit, PaiementClient, CompteClient, Jour, FactureCloturee
 )
 import datetime
 from django.db import models
+from django.utils.timezone import now
+from django.shortcuts import redirect
+from django.contrib import messages
 
 class DateLivraisonJourFilter(admin.SimpleListFilter):
     title = _('Date de livraison rapide')
@@ -59,10 +62,12 @@ class CompteClientAdmin(admin.ModelAdmin):
     inlines = [CommandeInline, PaiementInline]
 
     def get_urls(self):
+        from django.urls import path
         urls = super().get_urls()
         custom_urls = [
             path('<int:client_id>/export/', self.admin_site.admin_view(self.export_releve), name='compteclient_export'),
-            path('resumes/', self.admin_site.admin_view(self.export_resume_clients), name='compteclient_resume')
+            path('resumes/', self.admin_site.admin_view(self.export_resume_clients), name='compteclient_resume'),
+            path('<int:client_id>/cloturer/', self.admin_site.admin_view(self.cloturer_compte), name='gestion_compteclient_cloturer'),
         ]
         return custom_urls + urls
 
@@ -115,10 +120,69 @@ class CompteClientAdmin(admin.ModelAdmin):
             '<a class="button" style="margin:1em;" href="{}">\U0001f4ca Résumé général</a>', url
         )
         return super().changelist_view(request, extra_context=extra_context)
+    
+    def cloturer_link(self, obj):
+        url = reverse('admin:gestion_compteclient_cloturer', args=[obj.pk])
+        return format_html('<a class="button" href="{}">📄 Clôturer le compte</a>', url)
+    cloturer_link.short_description = "Clôturer le compte"
+
+    # Ajoute 'cloturer_link' dans list_display
+    list_display = ('nom', 'email', 'telephone', 'solde', 'frequence_paiement', 'export_link', 'cloturer_link')
+
+    def cloturer_compte(self, request, client_id):
+        client = CompteClient.objects.get(pk=client_id)
+
+        if client.solde != 0:
+            messages.error(request, "Le solde du client doit être à zéro pour clôturer.")
+            return redirect(f'../../{client_id}/change/')
+
+        commandes = client.commandes.all()
+        paiements_qs = client.paiements.all()
+
+        total_commandes = sum(c.total for c in commandes)
+        total_paiements = sum(p.montant for p in paiements_qs)
+
+    # Archiver les données
+        produits = []
+        for commande in commandes:
+            for cp in commande.commande_produits.all():
+                produits.append({
+                    'commande_id': commande.id,
+                    'produit': cp.produit.nom,
+                    'quantite': cp.quantite,
+                    'prix_unitaire': cp.produit.prix,
+                    'total_ligne': cp.quantite * cp.produit.prix,
+                    'date_livraison': commande.date_livraison.isoformat()
+                })
+
+        paiements_archives = [{
+            'montant': p.montant,
+            'date': p.date_paiement.isoformat(),
+            'mode': p.mode_paiement
+        } for p in paiements_qs]
+
+        FactureCloturee.objects.create(
+            client=client,
+            montant_total_commandes=total_commandes,
+            montant_total_paye=total_paiements,
+            produits_json=produits,
+            paiements_json=paiements_archives,
+            commentaire="Facture générée automatiquement à la clôture du compte."
+        )
+
+        commandes.delete()
+        paiements_qs.delete()
+
+        client.solde = 0
+        client.save(update_fields=['solde'])
+
+        messages.success(request, "Le compte client a été clôturé et la facture enregistrée.")
+        return redirect(f'../../{client_id}/change/')
+
 
 @admin.register(Commande)
 class CommandeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'date_commande', 'client', 'total', 'statut', 'is_speciale']
+    list_display = ['id', 'date_commande', 'client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
     inlines = [CommandeProduitInline]
     list_filter = [
         DateLivraisonJourFilter,
@@ -130,6 +194,29 @@ class CommandeAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         obj.finaliser_commande()
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:commande_id>/generer-facture/', self.admin_site.admin_view(self.generer_facture_pdf), name='generer_facture_pdf'),
+        ]
+        return custom_urls + urls
+
+    def generate_facture_button(self, obj):
+        url = reverse('admin:generer_facture_pdf', args=[obj.pk])
+        label = "📄 Générer / Re-générer Facture"
+        return format_html('<a class="button" href="{}">{}</a>', url, label)
+
+
+    def generer_facture_pdf(self, request, commande_id):
+        commande = Commande.objects.get(pk=commande_id)
+        facture = commande.update_facture()
+        pdf_path = facture.generer_pdf()
+
+        with open(pdf_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename=\"facture_{facture.id}.pdf\"'
+            return response
 
 @admin.register(Produit)
 class ProduitAdmin(admin.ModelAdmin):
@@ -205,3 +292,31 @@ class CommandeModeleAdmin(admin.ModelAdmin):
 @admin.register(Jour)
 class JourAdmin(admin.ModelAdmin):
     list_display = ['code']
+
+@admin.register(FactureCloturee)
+class FactureClotureeAdmin(admin.ModelAdmin):
+    list_display = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'download_pdf_button']
+    list_filter = ['date_facture']
+    search_fields = ['client__nom']
+    readonly_fields = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'commentaire']
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:facture_id>/download/', self.admin_site.admin_view(self.download_pdf), name='facturecloturee_download'),
+        ]
+        return custom_urls + urls
+
+    def download_pdf_button(self, obj):
+        url = reverse('admin:facturecloturee_download', args=[obj.pk])
+        return format_html('<a class="button" href="{}">📄 Télécharger PDF</a>', url)
+    download_pdf_button.short_description = "Télécharger PDF"
+
+    def download_pdf(self, request, facture_id):
+        facture = FactureCloturee.objects.get(pk=facture_id)
+        pdf_path = facture.generer_pdf()
+
+        with open(pdf_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename=\"facture_cloturee_{facture.id}.pdf\"'
+            return response
