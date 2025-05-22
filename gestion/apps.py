@@ -20,5 +20,4 @@ class GestionConfig(AppConfig):
             for code, _ in jours:
                 Jour.objects.get_or_create(code=code)
         except (OperationalError, ProgrammingError):
-            # La base n'est peut-être pas encore prête (migrations)
             pass

@@ -72,6 +72,12 @@ class Client(models.Model):
     def __str__(self):
         return self.nom
 
+    def recalculer_solde(self):
+        commandes_total = self.commandes.aggregate(total=models.Sum('total'))['total'] or 0
+        paiements_total = self.paiements.aggregate(total=models.Sum('montant'))['total'] or 0
+        self.solde = commandes_total - paiements_total
+        self.save(update_fields=["solde"])
+
 class Commande(models.Model):
     client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, related_name='commandes')
     date_commande = models.DateTimeField(auto_now_add=True)
@@ -90,18 +96,10 @@ class Commande(models.Model):
     )
     remarque = models.TextField(blank=True, null=True)
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        self.calculer_total()
-        self.deduire_stock()
-        if self.client:
-            self.client.solde += self.total
-            self.client.save()
-
     def calculer_total(self):
         total = sum(cp.produit.prix * cp.quantite for cp in self.commande_produits.all())
         self.total = total
-        super().save(update_fields=['total'])
+        self.save(update_fields=['total'])
 
     def deduire_stock(self):
         for cp in self.commande_produits.all():
@@ -122,6 +120,13 @@ class Commande(models.Model):
             facture.montant_total = self.total
             facture.save()
         return facture
+
+    def finaliser_commande(self):
+        self.save()
+        self.calculer_total()
+        self.deduire_stock()
+        if self.client:
+            self.client.recalculer_solde()
 
     def __str__(self):
         return f"Commande #{self.id} - {self.statut}"
@@ -187,8 +192,8 @@ class PaiementClient(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        self.client.solde -= self.montant
-        self.client.save()
+        if self.client:
+            self.client.recalculer_solde()
 
     def __str__(self):
         return f"Paiement de {self.montant} TND pour {self.client.nom}"
@@ -213,4 +218,3 @@ class CompteClient(Client):
         proxy = True
         verbose_name = "Compte client"
         verbose_name_plural = "Comptes clients"
-

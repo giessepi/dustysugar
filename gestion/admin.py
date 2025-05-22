@@ -13,26 +13,6 @@ from .models import (
 import datetime
 from django.db import models
 
-# ⏱️ Met à jour le solde du client à chaque sauvegarde de commande ou paiement
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
-
-def actualiser_solde(client):
-    commandes_total = client.commandes.aggregate(total=models.Sum('total'))['total'] or 0
-    paiements_total = client.paiements.aggregate(total=models.Sum('montant'))['total'] or 0
-    client.solde = commandes_total - paiements_total
-    client.save(update_fields=["solde"])
-
-@receiver([post_save, post_delete], sender=Commande)
-def maj_solde_commande(sender, instance, **kwargs):
-    if instance.client:
-        actualiser_solde(instance.client)
-
-@receiver([post_save, post_delete], sender=PaiementClient)
-def maj_solde_paiement(sender, instance, **kwargs):
-    if instance.client:
-        actualiser_solde(instance.client)
-
 class DateLivraisonJourFilter(admin.SimpleListFilter):
     title = _('Date de livraison rapide')
     parameter_name = 'date_livraison_exacte'
@@ -136,10 +116,6 @@ class CompteClientAdmin(admin.ModelAdmin):
         )
         return super().changelist_view(request, extra_context=extra_context)
 
-
-
-
-
 @admin.register(Commande)
 class CommandeAdmin(admin.ModelAdmin):
     list_display = ['id', 'date_commande', 'client', 'total', 'statut', 'is_speciale']
@@ -153,11 +129,7 @@ class CommandeAdmin(admin.ModelAdmin):
     search_fields = ['client__nom', 'id']
 
     def save_model(self, request, obj, form, change):
-        obj.save()
-        if hasattr(obj, 'facture'):
-            obj.facture.montant_total = obj.total
-            obj.facture.save()
-            obj.facture.generer_pdf()
+        obj.finaliser_commande()
 
 @admin.register(Produit)
 class ProduitAdmin(admin.ModelAdmin):
@@ -191,6 +163,11 @@ class PaiementClientAdmin(admin.ModelAdmin):
     list_display = ['client', 'montant', 'date_paiement', 'mode_paiement']
     list_filter = ['client', 'date_paiement', 'mode_paiement']
     search_fields = ['client__nom']
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.client:
+            obj.client.recalculer_solde()
 
 class CommandeModeleProduitInline(admin.TabularInline):
     model = CommandeModeleProduit
