@@ -6,6 +6,8 @@ import os
 from django.conf import settings
 from django.db.models import JSONField
 
+
+
 JOUR_CHOIX = [
     ('0', 'Lundi'),
     ('1', 'Mardi'),
@@ -256,3 +258,191 @@ class FactureCloturee(models.Model):
 
     def __str__(self):
         return f"Facture clôturée - {self.client.nom} ({self.date_facture.date()})"
+
+    
+# Fournisseurs et dépenses
+
+class Fournisseur(models.Model):
+    nom = models.CharField(max_length=100)
+    email = models.EmailField(blank=True, null=True)
+    telephone = models.CharField(max_length=20, blank=True, null=True)
+    adresse = models.TextField(blank=True, null=True)
+    solde = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return self.nom
+
+    def recalculer_solde(self):
+        total_factures = self.factures.aggregate(total=models.Sum('montant_total'))['total'] or 0
+        total_paye = PaiementFournisseur.objects.filter(facture__fournisseur=self).aggregate(total=models.Sum('montant'))['total'] or 0
+        self.solde = total_factures - total_paye
+        self.save(update_fields=['solde'])
+
+class FactureFournisseur(models.Model):
+    fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='factures')
+    date_facture = models.DateField(default=now)
+    montant_total = models.FloatField()
+    description = models.TextField(blank=True, null=True)
+    statut = models.CharField(
+        max_length=20,
+        choices=[('non payée', 'Non payée'), ('payée', 'Payée')],
+        default='non payée'
+    )
+
+    def __str__(self):
+        return f"Facture #{self.id} - {self.fournisseur.nom}"
+
+class PaiementFournisseur(models.Model):
+    facture = models.ForeignKey('FactureFournisseur', on_delete=models.CASCADE, related_name='paiements')
+    fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='paiements', null=True, blank=True)
+    montant = models.FloatField()
+    date_paiement = models.DateField(default=now)
+    mode_paiement = models.CharField(
+        max_length=20,
+        choices=[('virement', 'Virement'), ('espèces', 'Espèces'), ('chèque', 'Chèque')]
+    )
+
+    def save(self, *args, **kwargs):
+        if self.facture and not self.fournisseur:
+            self.fournisseur = self.facture.fournisseur
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Paiement de {self.montant} TND à {self.facture.fournisseur.nom}"
+
+
+class CompteFournisseur(Fournisseur):
+    class Meta:
+        proxy = True
+        verbose_name = "Compte fournisseur"
+        verbose_name_plural = "Comptes fournisseurs"
+
+class FactureFournisseurCloturee(models.Model):
+    fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='factures_cloturees')
+    date_cloture = models.DateTimeField(default=now)
+    montant_total_factures = models.FloatField()
+    montant_total_paye = models.FloatField()
+    description = models.TextField(blank=True, null=True)
+    factures_json = models.JSONField(blank=True, null=True)
+    paiements_json = models.JSONField(blank=True, null=True)
+
+    def generer_pdf(self):
+        file_name = f"FactureFournisseurCloturee_{self.id}.pdf"
+        file_path = os.path.join(settings.BASE_DIR, 'factures_fournisseurs_cloturees', file_name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        context = {
+            'facture': self,
+            'fournisseur': self.fournisseur,
+            'date_cloture': self.date_cloture,
+            'montant_total_factures': self.montant_total_factures,
+            'montant_total_paye': self.montant_total_paye,
+            'description': self.description,
+            'factures': self.factures_json or [],
+            'paiements': self.paiements_json or []
+        }
+
+        html = render_to_string("facture_fournisseur_cloturee_template.html", context)
+        HTML(string=html).write_pdf(file_path)
+
+        return file_path
+
+    def __str__(self):
+        return f"Clôture fournisseur - {self.fournisseur.nom} ({self.date_cloture.date()})"
+
+
+class ClientAdminProxy(Client):
+    class Meta:
+        proxy = True
+        verbose_name = "Client"
+        verbose_name_plural = "🧾 Clients"
+
+class CompteClientAdminProxy(CompteClient):
+    class Meta:
+        proxy = True
+        verbose_name = "Compte client"
+        verbose_name_plural = "🧾 Clients"
+
+class PaiementClientAdminProxy(PaiementClient):
+    class Meta:
+        proxy = True
+        verbose_name = "Paiement client"
+        verbose_name_plural = "🧾 Clients"
+
+class FactureAdminProxy(Facture):
+    class Meta:
+        proxy = True
+        verbose_name = "Facture"
+        verbose_name_plural = "🧾 Clients"
+
+class FactureClotureeAdminProxy(FactureCloturee):
+    class Meta:
+        proxy = True
+        verbose_name = "Facture clôturée"
+        verbose_name_plural = "🧾 Clients"
+
+class FournisseurAdminProxy(Fournisseur):
+    class Meta:
+        proxy = True
+        verbose_name = "Fournisseur"
+        verbose_name_plural = "🏢 Fournisseurs"
+
+class CompteFournisseurAdminProxy(CompteFournisseur):
+    class Meta:
+        proxy = True
+        verbose_name = "Compte fournisseur"
+        verbose_name_plural = "🏢 Fournisseurs"
+
+class PaiementFournisseurAdminProxy(PaiementFournisseur):
+    class Meta:
+        proxy = True
+        verbose_name = "Paiement fournisseur"
+        verbose_name_plural = "🏢 Fournisseurs"
+
+class FactureFournisseurAdminProxy(FactureFournisseur):
+    class Meta:
+        proxy = True
+        verbose_name = "Facture fournisseur"
+        verbose_name_plural = "🏢 Fournisseurs"
+
+class FactureFournisseurClotureeAdminProxy(FactureFournisseurCloturee):
+    class Meta:
+        proxy = True
+        verbose_name = "Facture fournisseur clôturée"
+        verbose_name_plural = "🏢 Fournisseurs"
+
+class CommandeAdminProxy(Commande):
+    class Meta:
+        proxy = True
+        verbose_name = "Commande"
+        verbose_name_plural = "🛒 Commandes"
+
+class CommandeModeleAdminProxy(CommandeModele):
+    class Meta:
+        proxy = True
+        verbose_name = "Commande modèle"
+        verbose_name_plural = "🛒 Commandes"
+
+class CommandeProduitAdminProxy(CommandeProduit):
+    class Meta:
+        proxy = True
+        verbose_name = "Commande produit"
+        verbose_name_plural = "🛒 Commandes"
+
+class CommandeModeleProduitAdminProxy(CommandeModeleProduit):
+    class Meta:
+        proxy = True
+        verbose_name = "Commande modèle produit"
+        verbose_name_plural = "🛒 Commandes"
+
+class ProduitAdminProxy(Produit):
+    class Meta:
+        proxy = True
+        verbose_name = "Produit"
+        verbose_name_plural = "🍰 Produits"
+
+class IngredientAdminProxy(Ingredient):
+    class Meta:
+        proxy = True
+        verbose_name = "Ingrédient"
+        verbose_name_plural = "🍳 Ingrédients"

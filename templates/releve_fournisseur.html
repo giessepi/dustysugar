@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Relevé fournisseur - {{ fournisseur.nom }}</title>
+    <style>
+        body { font-family: sans-serif; font-size: 14px; }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Relevé du compte fournisseur</h1>
+    <p><strong>Fournisseur :</strong> {{ fournisseur.nom }}</p>
+    <p><strong>Email :</strong> {{ fournisseur.email }}</p>
+    <p><strong>Téléphone :</strong> {{ fournisseur.telephone }}</p>
+    <p><strong>Date de génération :</strong> {{ date_generation }}</p>
+
+    <h2>Factures</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Montant</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in factures %}
+            <tr>
+                <td>{{ f.id }}</td>
+                <td>{{ f.date_facture }}</td>
+                <td>{{ f.montant_total }} TND</td>
+                <td>{{ f.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Paiements</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Montant</th>
+                <th>Mode</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in paiements %}
+            <tr>
+                <td>{{ p.date_paiement }}</td>
+                <td>{{ p.montant }} TND</td>
+                <td>{{ p.mode_paiement }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Total des factures : {{ total_factures }} TND</h3>
+    <h3>Total payé : {{ total_paye }} TND</h3>
+    <h3><strong>Solde restant : {{ reste }} TND</strong></h3>
+</body>
+</html>

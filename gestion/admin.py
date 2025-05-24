@@ -8,13 +8,21 @@ from weasyprint import HTML
 from .models import (
     Commande, Produit, Ingredient, ProduitIngredient,
     CommandeProduit, Client, Facture,
-    CommandeModele, CommandeModeleProduit, PaiementClient, CompteClient, Jour, FactureCloturee
+    CommandeModele, CommandeModeleProduit, PaiementClient, CompteClient, Jour, FactureCloturee,
+    Fournisseur, FactureFournisseur, PaiementFournisseur, CompteFournisseur, FactureFournisseurCloturee,
+    ClientAdminProxy, CompteClientAdminProxy, PaiementClientAdminProxy,
+    FactureAdminProxy, FactureClotureeAdminProxy,
+    FournisseurAdminProxy, CompteFournisseurAdminProxy, PaiementFournisseurAdminProxy,
+    FactureFournisseurAdminProxy, FactureFournisseurClotureeAdminProxy,
+    CommandeAdminProxy, CommandeModeleAdminProxy, CommandeProduitAdminProxy, CommandeModeleProduitAdminProxy,
+    ProduitAdminProxy, IngredientAdminProxy
 )
 import datetime
 from django.db import models
 from django.utils.timezone import now
 from django.shortcuts import redirect
 from django.contrib import messages
+
 
 class DateLivraisonJourFilter(admin.SimpleListFilter):
     title = _('Date de livraison rapide')
@@ -320,3 +328,163 @@ class FactureClotureeAdmin(admin.ModelAdmin):
             response = HttpResponse(f.read(), content_type='application/pdf')
             response['Content-Disposition'] = f'inline; filename=\"facture_cloturee_{facture.id}.pdf\"'
             return response
+
+@admin.register(CompteFournisseur)
+class CompteFournisseurAdmin(admin.ModelAdmin):
+    list_display = ('nom', 'email', 'telephone', 'solde', 'export_link', 'cloturer_link')
+    search_fields = ('nom', 'email')
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:fournisseur_id>/cloturer/', self.admin_site.admin_view(self.cloturer_compte), name='gestion_comptefournisseur_cloturer'),
+            path('<int:fournisseur_id>/export/', self.admin_site.admin_view(self.export_releve), name='comptefournisseur_export')
+        ]
+        return custom_urls + urls
+
+    def export_link(self, obj):
+        url = reverse('admin:comptefournisseur_export', args=[obj.pk])
+        return format_html('<a class="button" href="{}">\U0001f4c4 Relevé PDF</a>', url)
+    export_link.short_description = "Relevé PDF"
+
+    def cloturer_link(self, obj):
+        url = reverse('admin:gestion_comptefournisseur_cloturer', args=[obj.pk])
+        return format_html('<a class="button" href="{}">\U0001f4dc Clôturer le compte</a>', url)
+    cloturer_link.short_description = "Clôturer"
+
+    def export_releve(self, request, fournisseur_id):
+        fournisseur = Fournisseur.objects.get(pk=fournisseur_id)
+        factures = fournisseur.factures.all()
+        paiements = PaiementFournisseur.objects.filter(facture__fournisseur=fournisseur)
+        total_factures = sum(f.montant_total for f in factures)
+        total_paye = sum(p.montant for p in paiements)
+        reste = total_factures - total_paye
+
+        html = render_to_string("releve_fournisseur.html", {
+            'fournisseur': fournisseur,
+            'factures': factures,
+            'paiements': paiements,
+            'total_factures': total_factures,
+            'total_paye': total_paye,
+            'reste': reste,
+            'date_generation': datetime.date.today()
+        })
+        pdf = HTML(string=html).write_pdf()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename=releve_fournisseur_{fournisseur.nom}.pdf'
+        return response
+
+    def cloturer_compte(self, request, fournisseur_id):
+        fournisseur = Fournisseur.objects.get(pk=fournisseur_id)
+        factures = fournisseur.factures.all()
+        paiements_qs = PaiementFournisseur.objects.filter(facture__fournisseur=fournisseur)
+
+        if fournisseur.solde != 0:
+            messages.error(request, "Le solde doit être à zéro pour clôturer le compte fournisseur.")
+            return redirect(f'../../{fournisseur_id}/change/')
+
+        total_factures = sum(f.montant_total for f in factures)
+        total_paiements = sum(p.montant for p in paiements_qs)
+
+        factures_archives = [{
+            'id': f.id,
+            'date_facture': f.date_facture.isoformat(),
+            'montant': f.montant_total,
+            'description': f.description
+        } for f in factures]
+
+        paiements_archives = [{
+            'montant': p.montant,
+            'date': p.date_paiement.isoformat(),
+            'mode': p.mode_paiement
+        } for p in paiements_qs]
+
+        FactureFournisseurCloturee.objects.create(
+            fournisseur=fournisseur,
+            montant_total_factures=total_factures,
+            montant_total_paye=total_paiements,
+            description="Clôture automatique du compte",
+            factures_json=factures_archives,
+            paiements_json=paiements_archives
+        )
+
+        factures.delete()
+        paiements_qs.delete()
+        fournisseur.solde = 0
+        fournisseur.save(update_fields=['solde'])
+
+        messages.success(request, "Le compte fournisseur a été clôturé.")
+        return redirect(f'../../{fournisseur_id}/change/')
+
+@admin.register(FactureFournisseur)
+class FactureFournisseurAdmin(admin.ModelAdmin):
+    list_display = ['id', 'fournisseur', 'date_facture', 'montant_total', 'statut']
+    list_filter = ['statut', 'date_facture']
+    search_fields = ['fournisseur__nom']
+
+@admin.register(PaiementFournisseur)
+class PaiementFournisseurAdmin(admin.ModelAdmin):
+    list_display = ['facture', 'montant', 'date_paiement', 'mode_paiement']
+    list_filter = ['date_paiement', 'mode_paiement']
+    search_fields = ['facture__fournisseur__nom']
+
+@admin.register(FactureFournisseurCloturee)
+class FactureFournisseurClotureeAdmin(admin.ModelAdmin):
+    list_display = ['fournisseur', 'date_cloture', 'montant_total_factures', 'montant_total_paye', 'download_pdf_button']
+    readonly_fields = ['fournisseur', 'date_cloture', 'montant_total_factures', 'montant_total_paye', 'description']
+    search_fields = ['fournisseur__nom']
+    list_filter = ['date_cloture']
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('<int:facture_id>/download/', self.admin_site.admin_view(self.download_pdf), name='facturefournisseurcloturee_download'),
+        ]
+        return custom_urls + urls
+
+    def download_pdf_button(self, obj):
+        url = reverse('admin:facturefournisseurcloturee_download', args=[obj.pk])
+        return format_html('<a class="button" href="{}">📄 Télécharger PDF</a>', url)
+    download_pdf_button.short_description = "PDF"
+
+    def download_pdf(self, request, facture_id):
+        facture = FactureFournisseurCloturee.objects.get(pk=facture_id)
+        pdf_path = facture.generer_pdf()
+        with open(pdf_path, 'rb') as f:
+            return HttpResponse(f.read(), content_type='application/pdf', headers={
+                'Content-Disposition': f'inline; filename=\"facture_fournisseur_cloturee_{facture.id}.pdf\"'
+            })
+class PaiementFournisseurInline(admin.TabularInline):
+    model = PaiementFournisseur
+    fk_name='fournisseur'
+    extra = 1
+    fields = ['facture', 'montant', 'date_paiement', 'mode_paiement']
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('facture__fournisseur')
+
+    def has_change_permission(self, request, obj=None):
+        return False  # Empêche l'édition directe, on édite via facture
+
+    def has_add_permission(self, request, obj=None):
+        return False  # Empêche l'ajout direct ici
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # Empêche la suppression directe ici
+
+class FactureFournisseurInline(admin.TabularInline):
+    model = FactureFournisseur
+    extra = 1
+    fields = ['date_facture', 'montant_total', 'description', 'statut']
+
+
+
+
+
+@admin.register(Fournisseur)
+class FournisseurAdmin(admin.ModelAdmin):
+    list_display = ['nom', 'email', 'telephone', 'solde']
+    search_fields = ['nom', 'email']
+    inlines = [FactureFournisseurInline, PaiementFournisseurInline]
+
