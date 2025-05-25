@@ -5,7 +5,7 @@ from weasyprint import HTML
 import os
 from django.conf import settings
 from django.db.models import JSONField
-
+from decimal import Decimal
 
 
 JOUR_CHOIX = [
@@ -86,7 +86,7 @@ class Commande(models.Model):
     date_commande = models.DateTimeField(auto_now_add=True)
     date_livraison = models.DateField(default=now)
     produits = models.ManyToManyField('Produit', through='CommandeProduit')
-    total = models.FloatField(default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     is_speciale = models.BooleanField(default=False)
     statut = models.CharField(
         max_length=20,
@@ -100,9 +100,13 @@ class Commande(models.Model):
     remarque = models.TextField(blank=True, null=True)
 
     def calculer_total(self):
-        total = sum(cp.produit.prix * cp.quantite for cp in self.commande_produits.all())
+        total = Decimal('0.00')
+        for cp in self.commande_produits.all():
+            prix = cp.prix_unitaire if cp.prix_unitaire is not None else Decimal(str(cp.produit.prix))
+            total += prix * cp.quantite
         self.total = total
         self.save(update_fields=['total'])
+
 
     def deduire_stock(self):
         for cp in self.commande_produits.all():
@@ -138,6 +142,7 @@ class CommandeProduit(models.Model):
     commande = models.ForeignKey('Commande', on_delete=models.CASCADE, related_name='commande_produits')
     produit = models.ForeignKey('Produit', on_delete=models.CASCADE)
     quantite = models.PositiveIntegerField(default=1)
+    prix_unitaire = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -146,7 +151,8 @@ class CommandeProduit(models.Model):
 
     @property
     def total_ligne(self):
-        return self.quantite * self.produit.prix
+        prix = self.prix_unitaire if self.prix_unitaire is not None else self.produit.prix
+        return prix * self.quantite
 
     def __str__(self):
         return f"{self.quantite} x {self.produit.nom} (Commande #{self.commande.id})"
@@ -355,91 +361,91 @@ class ClientAdminProxy(Client):
     class Meta:
         proxy = True
         verbose_name = "Client"
-        verbose_name_plural = "🧾 Clients"
+        verbose_name_plural = "🧾 Clients - Bases"
 
 class CompteClientAdminProxy(CompteClient):
     class Meta:
         proxy = True
         verbose_name = "Compte client"
-        verbose_name_plural = "🧾 Clients"
+        verbose_name_plural = "🧾 Clients - Comptes"
 
 class PaiementClientAdminProxy(PaiementClient):
     class Meta:
         proxy = True
         verbose_name = "Paiement client"
-        verbose_name_plural = "🧾 Clients"
+        verbose_name_plural = "🧾 Clients - Paiements"
 
 class FactureAdminProxy(Facture):
     class Meta:
         proxy = True
         verbose_name = "Facture"
-        verbose_name_plural = "🧾 Clients"
+        verbose_name_plural = "🧾 Clients - Factures"
 
 class FactureClotureeAdminProxy(FactureCloturee):
     class Meta:
         proxy = True
         verbose_name = "Facture clôturée"
-        verbose_name_plural = "🧾 Clients"
+        verbose_name_plural = "🧾 Clients - Cloturées"
 
 class FournisseurAdminProxy(Fournisseur):
     class Meta:
         proxy = True
         verbose_name = "Fournisseur"
-        verbose_name_plural = "🏢 Fournisseurs"
+        verbose_name_plural = "🏢 Fournisseurs - Bases"
 
 class CompteFournisseurAdminProxy(CompteFournisseur):
     class Meta:
         proxy = True
         verbose_name = "Compte fournisseur"
-        verbose_name_plural = "🏢 Fournisseurs"
+        verbose_name_plural = "🏢 Fournisseurs - Comptes"
 
 class PaiementFournisseurAdminProxy(PaiementFournisseur):
     class Meta:
         proxy = True
         verbose_name = "Paiement fournisseur"
-        verbose_name_plural = "🏢 Fournisseurs"
+        verbose_name_plural = "🏢 Fournisseurs - Paiements"
 
 class FactureFournisseurAdminProxy(FactureFournisseur):
     class Meta:
         proxy = True
         verbose_name = "Facture fournisseur"
-        verbose_name_plural = "🏢 Fournisseurs"
+        verbose_name_plural = "🏢 Fournisseurs - Factures"
 
 class FactureFournisseurClotureeAdminProxy(FactureFournisseurCloturee):
     class Meta:
         proxy = True
         verbose_name = "Facture fournisseur clôturée"
-        verbose_name_plural = "🏢 Fournisseurs"
+        verbose_name_plural = "🏢 Fournisseurs - Cloturées"
 
 class CommandeAdminProxy(Commande):
     class Meta:
         proxy = True
         verbose_name = "Commande"
-        verbose_name_plural = "🛒 Commandes"
+        verbose_name_plural = "🛒 Commandes - Bases"
 
 class CommandeModeleAdminProxy(CommandeModele):
     class Meta:
         proxy = True
         verbose_name = "Commande modèle"
-        verbose_name_plural = "🛒 Commandes"
+        verbose_name_plural = "🛒 Commandes - Modèles"
 
 class CommandeProduitAdminProxy(CommandeProduit):
     class Meta:
         proxy = True
         verbose_name = "Commande produit"
-        verbose_name_plural = "🛒 Commandes"
+        verbose_name_plural = "🛒 Commandes - Produits"
 
 class CommandeModeleProduitAdminProxy(CommandeModeleProduit):
     class Meta:
         proxy = True
         verbose_name = "Commande modèle produit"
-        verbose_name_plural = "🛒 Commandes"
+        verbose_name_plural = "🛒 Commandes Modèles - Produits"
 
 class ProduitAdminProxy(Produit):
     class Meta:
         proxy = True
         verbose_name = "Produit"
-        verbose_name_plural = "🍰 Produits"
+        verbose_name_plural = "🍰 Produits - Bases"
 
 class IngredientAdminProxy(Ingredient):
     class Meta:

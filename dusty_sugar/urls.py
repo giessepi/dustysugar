@@ -1,11 +1,7 @@
-# urls.py dans dusty_sugar/dusty_sugar
-
-from django.contrib import admin
-from django.http import HttpResponse
 from django.urls import path, include
+from gestion.admin import admin_site  # ton admin personnalisé
 
 urlpatterns = [
-    path('', lambda request: HttpResponse("Bienvenue sur Dusty Sugar!"), name='home'),  # Page d'accueil
-    path('admin/', admin.site.urls),  # Interface admin
-    path('api/', include('gestion.urls')),  # Inclure les URLs de gestion sous "/api/"
+    path('admin/', admin_site.urls),         # ✅ active l’interface regroupée
+    path('api/', include('gestion.urls')),   # ✅ conserve les API et commandes journalières
 ]

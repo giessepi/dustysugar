@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Factures clôturées - {{ date }}</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #aaa; padding: 8px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        .totaux { margin-top: 20px; font-size: 16px; font-weight: bold; text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>Factures clôturées - {{ date }}</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Client</th>
+                <th>Montant commandes</th>
+                <th>Montant payé</th>
+                <th>Commentaire</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for facture in factures %}
+            <tr>
+                <td>{{ facture.client.nom }}</td>
+                <td>{{ facture.montant_total_commandes }} TND</td>
+                <td>{{ facture.montant_total_paye }} TND</td>
+                <td>{{ facture.commentaire }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4"><em>Aucune facture clôturée aujourd’hui.</em></td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totaux">
+        Total payé aujourd’hui : {{ total_paye|floatformat:2 }} TND
+    </div>
+</body>
+</html>
