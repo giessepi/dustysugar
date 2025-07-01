@@ -46,32 +46,20 @@ def generer_commandes_journalieres_view(request):
     for commande in commandes:
         commande.calculer_total()
 
-    # 3. Génère la page de résumé
+    # 3. Génère la page de résumé (PDF)
     total_global = sum(commande.total for commande in commandes)
     resume_html = render_to_string("commandes_resume.html", {
         'commandes': commandes,
         'date_livraison': tomorrow,
         'total_global': total_global
     })
+    pdf_resume = HTML(string=resume_html).write_pdf()
 
-    # 4. Génère les factures pages
-    factures_html = ""
-    for commande in commandes:
-        facture = commande.facture
-        html_facture = render_to_string("facture_template.html", {
-            'facture': facture,
-            'commande': commande,
-        })
-        factures_html += f"<div style='page-break-before: always;'>{html_facture}</div>"
-
-    # 5. Fusionne résumé + factures
-    pdf_commandes = HTML(string=resume_html + factures_html).write_pdf()
-
-    # ➕ Générer les listes par catégorie
+    # 4. Génère les listes par catégorie
     fichiers = generer_pdfs_par_categorie(commandes, tomorrow)
-    fichiers[f"commandes_{date_str}.pdf"] = pdf_commandes
+    fichiers[f"commandes_{date_str}.pdf"] = pdf_resume
 
-    # 6. Retourne un ZIP contenant tout
+    # 5. Retourne un ZIP contenant tout
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zf:
         for filename, content in fichiers.items():
@@ -81,6 +69,7 @@ def generer_commandes_journalieres_view(request):
     response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
     response['Content-Disposition'] = f'attachment; filename=livraison_{date_str}.zip'
     return response
+
 
 def generer_pdfs_par_categorie(commandes, date_livraison):
     regroupement = defaultdict(lambda: defaultdict(int))

@@ -22,6 +22,27 @@ from .models import (
     CommandeAdminProxy, CommandeModeleAdminProxy, CommandeProduitAdminProxy, CommandeModeleProduitAdminProxy,
     ProduitAdminProxy, IngredientAdminProxy
 )
+@admin.action(description="📄 Générer un seul PDF (toutes les commandes)")
+def generer_factures_pdf_fusionne(modeladmin, request, queryset):
+    html_complet = ""
+
+    for commande in queryset:
+        facture = commande.facture or commande.update_facture()
+        if not facture:
+            continue
+
+        html = render_to_string("facture_template.html", {
+            "commande": commande,
+            "facture": facture,
+            "date_affichee": commande.date_livraison
+        })
+        html_complet += f"<div style='page-break-after: always'>{html}</div>"
+
+    pdf_fusionne = HTML(string=html_complet).write_pdf()
+
+    response = HttpResponse(pdf_fusionne, content_type="application/pdf")
+    response["Content-Disposition"] = "attachment; filename=commandes_fusionnees.pdf"
+    return response
 
 class GestionAdminSite(admin.AdminSite):
     site_header = "Administration de Gestion"
@@ -227,16 +248,21 @@ class CompteClientAdmin(admin.ModelAdmin):
 
 @admin.register(CommandeAdminProxy, site=admin_site)
 class CommandeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'date_commande', 'client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
-    actions = ['generer_resume_commandes']
+    list_display = ['id', 'date_commande', 'client','frequence_client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
+    actions = ['generer_resume_commandes', 'generer_factures_pdf_fusionne']
     inlines = [CommandeProduitInline]
     list_filter = [
         DateLivraisonJourFilter,
         'statut',
         'date_commande',
-        'is_speciale'
+        'is_speciale',
     ]
     search_fields = ['client__nom', 'id']
+    def frequence_client(self, obj):
+        if obj.client:
+            return obj.client.frequence_paiement
+        return "-"
+    frequence_client.short_description = "Fréquence"
 
     def generer_resume_commandes(self, request, queryset):
         if not queryset.exists():
@@ -345,17 +371,33 @@ class FactureFournisseurAdmin(admin.ModelAdmin):
 
 @admin.register(FactureClotureeAdminProxy, site=admin_site)
 class FactureClotureeAdmin(admin.ModelAdmin):
-    list_display = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye']
+    actions = ['exporter_selection_pdf']
+    list_display = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'export_pdf_button']
     search_fields = ['client__nom']
     list_filter = ['date_facture']
     readonly_fields = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'commentaire']
 
+    def export_pdf_button(self, obj):
+        url = reverse('admin:facturecloturee_download', args=[obj.pk])
+        return format_html('<a class="button" href="{}">📄 PDF</a>', url)
+    export_pdf_button.short_description = "Télécharger"
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
+            path('<int:facture_id>/download/', self.admin_site.admin_view(self.download_pdf), name='facturecloturee_download'),
             path('export-aujourdhui/', self.admin_site.admin_view(self.export_factures_aujourdhui), name='factures_cloturees_aujourdhui'),
         ]
         return custom_urls + urls
+
+    def download_pdf(self, request, facture_id):
+        facture = FactureCloturee.objects.get(pk=facture_id)
+        pdf_path = facture.generer_pdf()
+        with open(pdf_path, 'rb') as f:
+            return HttpResponse(f.read(), content_type='application/pdf', headers={
+                'Content-Disposition': f'inline; filename="facture_cloturee_{facture.id}.pdf"'
+
+            })
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -383,6 +425,7 @@ class FactureClotureeAdmin(admin.ModelAdmin):
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename=factures_cloturees_{today}.pdf'
         return response
+
 
 
 @admin.register(CompteFournisseurAdminProxy, site=admin_site)
@@ -528,3 +571,4 @@ class ClientAdmin(admin.ModelAdmin):
 #     list_display = ['produit', 'ingredient', 'quantite']
 #     list_filter = ['produit', 'ingredient']
 #     search_fields = ['produit__nom', 'ingredient__nom']
+

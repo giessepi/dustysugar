@@ -78,7 +78,7 @@ class Client(models.Model):
     def recalculer_solde(self):
         commandes_total = self.commandes.aggregate(total=models.Sum('total'))['total'] or 0
         paiements_total = self.paiements.aggregate(total=models.Sum('montant'))['total'] or 0
-        self.solde = commandes_total - paiements_total
+        self.solde = Decimal(commandes_total) - Decimal(paiements_total)
         self.save(update_fields=["solde"])
 
 class Commande(models.Model):

@@ -4,7 +4,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Bon de livraison Dusty Sugar</title>
+    <title>Facture Dusty Sugar</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -35,7 +35,12 @@
     </style>
 </head>
 <body>
-    <h1>Facture Dusty Sugar</h1>
+    {% if commande.client.frequence_paiement == "journalier" %}
+        <h1>Facture Dusty Sugar</h1>
+    {% else %}
+        <h1>Bon de livraison Dusty Sugar</h1>
+    {% endif %}
+
     <p><strong>Date de livraison :</strong>
         {% if date_affichee %}
             {{ date_affichee|date:"d F Y" }}
@@ -68,12 +73,11 @@
                 <td>{{ produit.quantite }}</td>
                 <td>
                     {% if produit.prix_unitaire %}
-                    {{ produit.prix_unitaire|floatformat:2 }} TND
-                {% else %}
-                    {{ produit.produit.prix|floatformat:2 }} TND
-                {% endif %}
+                        {{ produit.prix_unitaire|floatformat:2 }} TND
+                    {% else %}
+                        {{ produit.produit.prix|floatformat:2 }} TND
+                    {% endif %}
                 </td>
-
                 <td>{{ produit.total_ligne|floatformat:2 }} TND</td>
             </tr>
             {% endfor %}
