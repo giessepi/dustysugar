@@ -57,11 +57,14 @@ WSGI_APPLICATION = 'dusty_sugar.wsgi.application'
 
 # Base de données — automatique entre local (SQLite) et Render (PostgreSQL)
 DATABASES = {
-    'default': dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-        ssl_require=True
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get("PGDATABASE", "dustysugar"),
+        'USER': os.environ.get("PGUSER", "postgres"),
+        'PASSWORD': os.environ.get("PGPASSWORD", "motdepasse"),
+        'HOST': os.environ.get("PGHOST", "localhost"),
+        'PORT': os.environ.get("PGPORT", "5432"),
+    }
 }
 
 # Authentification
