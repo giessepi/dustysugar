@@ -1,0 +1,8 @@
+LOAD DATABASE
+     FROM sqlite:///data/db.sqlite3
+     INTO postgresql://dustysugar_db_clhg_user:fS7boDg1AIY6Fzzld3NxGoKkISADShuQ@dpg-d1j5nmndiees73cm5iig-a.frankfurt-postgres.render.com/dustysugar_db_clhg?sslmode=require
+
+ WITH include drop, create tables, create indexes, reset sequences, data only
+ SET work_mem to '16MB', maintenance_work_mem to '512 MB'
+ CAST type datetime to timestamptz using zero-dates-to-null
+;
