@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Liste de chargement - {{ date_livraison }}</title>
+    <style>
+        body { font-family: sans-serif; font-size: 12px; }
+        h1 { font-size: 18px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Liste de chargement - {{ date_livraison }}</h1>
+    <p>Généré le : {{ date_generation }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Client</th>
+                <th>Mode de livraison</th>
+                <th>Total articles</th>
+                <th>Nombre de bacs</th>
+                <th>Nombre de paquets</th>
+                <th>Détail</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ligne in commandes_par_client %}
+                <tr>
+                    <td>{{ ligne.client }}</td>
+                    <td>{{ ligne.type_livraison|title }}</td>
+                    <td>{{ ligne.total_articles }}</td>
+                    <td>{{ ligne.nb_bacs }}</td>
+                    <td>{{ ligne.nb_paquets }}</td>
+                    <td>
+                        {% for p in ligne.produits %}
+                            {{ p.nom }} x {{ p.quantite }}<br>
+                        {% endfor %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

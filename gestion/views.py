@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from .models import Ingredient, Produit, Commande, Facture
+from .models import Ingredient, Produit, Commande, Facture, EtapeLivraison, CommandeModele
 from .serializers import IngredientSerializer, ProduitSerializer, CommandeSerializer, FactureSerializer
 
 from django.core.management import call_command
@@ -13,6 +13,7 @@ import os
 from django.conf import settings
 import zipfile
 import io
+import math
 
 
 class IngredientViewSet(viewsets.ModelViewSet):
@@ -31,7 +32,7 @@ class FactureViewSet(viewsets.ModelViewSet):
     queryset = Facture.objects.all()
     serializer_class = FactureSerializer
 
-# 🔁 Vue combinée : génère commandes + génère PDF automatiquement
+
 @staff_member_required
 def generer_commandes_journalieres_view(request):
     # 1. Génère les commandes pour demain
@@ -59,7 +60,10 @@ def generer_commandes_journalieres_view(request):
     fichiers = generer_pdfs_par_categorie(commandes, tomorrow)
     fichiers[f"commandes_{date_str}.pdf"] = pdf_resume
 
-    # 5. Retourne un ZIP contenant tout
+    # 5. Génère la liste de chargement livraison
+    fichiers[f"liste_chargement_{date_str}.pdf"] = generer_pdf_liste_chargement(tomorrow)
+
+    # 6. Retourne un ZIP contenant tout
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w') as zf:
         for filename, content in fichiers.items():
@@ -91,3 +95,40 @@ def generer_pdfs_par_categorie(commandes, date_livraison):
         fichiers[f"{categorie}_{date_livraison.strftime('%Y-%m-%d')}.pdf"] = pdf_bytes
 
     return fichiers
+
+
+def generer_pdf_liste_chargement(date_livraison):
+    etapes = EtapeLivraison.objects.filter(actif=True).order_by('ordre').select_related('client')
+    commandes_par_client = []
+
+    for etape in etapes:
+        client = etape.client
+
+        if not client.livre_par_nous:
+            continue
+
+        commande = Commande.objects.filter(client=client, date_livraison=date_livraison).first()
+        if not commande:
+            continue
+
+        produits = commande.commande_produits.select_related('produit')
+        produits_filtrés = [cp for cp in produits if cp.produit.categorie in ['croissanterie', 'sale']]
+        total_articles = sum(cp.quantite for cp in produits_filtrés)
+
+        mode_livraison = client.mode_livraison
+
+        commandes_par_client.append({
+            'client': client.nom,
+            'type_livraison': mode_livraison,
+            'total_articles': total_articles,
+            'nb_bacs': math.ceil(total_articles / 25) if mode_livraison == 'bac' else '',
+            'nb_paquets': math.ceil(total_articles / 10) if mode_livraison == 'paquet' else '',
+            'produits': [{'nom': cp.produit.nom, 'quantite': cp.quantite} for cp in produits_filtrés]
+        })
+
+    html = render_to_string('liste_chargement_template.html', {
+        'commandes_par_client': commandes_par_client,
+        'date_livraison': date_livraison,
+        'date_generation': now().strftime("%d/%m/%Y %H:%M")
+    })
+    return HTML(string=html).write_pdf()

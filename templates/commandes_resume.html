@@ -26,11 +26,14 @@
     </style>
 </head>
 <body>
-    <h1>Résumé des commandes à livrer le {{ date_livraison|date:"d F Y" }}</h1>
+    <h1>Résumé des commandes selectionnées</h1>
+    <p>Généré le : {{ date_generation }}</p>
+
     <table>
         <thead>
             <tr>
                 <th>Client</th>
+                <th>Date de livraison</th>
                 <th>Produits</th>
                 <th>Total</th>
             </tr>
@@ -39,6 +42,7 @@
             {% for commande in commandes %}
             <tr>
                 <td>{{ commande.client.nom }}</td>
+                <td>{{ commande.date_livraison|date:"d/m/Y" }}</td>
                 <td>
                     <ul>
                         {% for produit in commande.commande_produits.all %}

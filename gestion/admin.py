@@ -11,6 +11,9 @@ from django.db import models
 from django.utils.timezone import now
 from django.shortcuts import redirect
 from django.contrib import messages
+from .models import PlanLivraisonPrincipal, EtapeLivraison
+
+
 
 from .models import (
     Commande, Produit, Ingredient, ProduitIngredient,
@@ -86,9 +89,18 @@ class CommandeProduitInline(admin.TabularInline):
 class CommandeInline(admin.TabularInline):
     model = Commande
     extra = 0
-    fields = ['date_commande','date_livraison', 'total', 'statut', 'is_speciale']
-    readonly_fields = ['total', 'date_commande']
-    show_change_link = True
+    show_change_link = False  # inutile ici, on gère le lien manuellement
+
+    readonly_fields = ['commande_link', 'date_livraison', 'total']
+    fields = ['commande_link', 'date_livraison', 'total', 'statut', 'is_speciale']
+
+    def commande_link(self, obj):
+        if obj.pk:
+            url = reverse("admin:gestion_commandeadminproxy_change", args=[obj.pk])
+            return format_html('<a href="{}">Commande #{}</a>', url, obj.pk)
+        return "-"
+    commande_link.short_description = "Commande"
+
 
 class PaiementInline(admin.TabularInline):
     model = PaiementClient
@@ -218,13 +230,13 @@ class CompteClientAdmin(admin.ModelAdmin):
                     'commande_id': commande.id,
                     'produit': cp.produit.nom,
                     'quantite': cp.quantite,
-                    'prix_unitaire': cp.produit.prix,
-                    'total_ligne': cp.quantite * cp.produit.prix,
+                    'prix_unitaire': float(cp.produit.prix),
+                    'total_ligne': float(cp.quantite * cp.produit.prix),
                     'date_livraison': commande.date_livraison.isoformat()
                 })
 
         paiements_archives = [{
-            'montant': p.montant,
+            'montant': float(p.montant),
             'date': p.date_paiement.isoformat(),
             'mode': p.mode_paiement
         } for p in paiements_qs]
@@ -248,7 +260,7 @@ class CompteClientAdmin(admin.ModelAdmin):
 
 @admin.register(CommandeAdminProxy, site=admin_site)
 class CommandeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'date_commande', 'client','frequence_client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
+    list_display = ['id', 'date_livraison', 'client','frequence_client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
     actions = ['generer_resume_commandes', 'generer_factures_pdf_fusionne']
     inlines = [CommandeProduitInline]
     list_filter = [
@@ -488,12 +500,12 @@ class CompteFournisseurAdmin(admin.ModelAdmin):
         factures_archives = [{
             'id': f.id,
             'date_facture': f.date_facture.isoformat(),
-            'montant': f.montant_total,
+            'montant': float(f.montant_total),
             'description': f.description
         } for f in factures]
 
         paiements_archives = [{
-            'montant': p.montant,
+            'montant': float(p.montant),
             'date': p.date_paiement.isoformat(),
             'mode': p.mode_paiement
         } for p in paiements_qs]
@@ -562,13 +574,30 @@ class PaiementClientAdmin(admin.ModelAdmin):
 
 @admin.register(ClientAdminProxy, site=admin_site)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ('nom', 'email', 'telephone', 'adresse', 'solde', 'frequence_paiement')
-    search_fields = ('nom', 'email')
-    list_filter = ('frequence_paiement',)
+    list_display = ('nom', 'livre_par_nous', 'solde', 'frequence_paiement')
+    list_editable = ('livre_par_nous',)
+    search_fields = ('nom',)
+    list_filter = ('frequence_paiement', 'livre_par_nous')
 
 # @admin.register(ProduitIngredientAdmin, site=admin_site)
 # class ProduitIngredientAdmin(admin.ModelAdmin):
 #     list_display = ['produit', 'ingredient', 'quantite']
 #     list_filter = ['produit', 'ingredient']
 #     search_fields = ['produit__nom', 'ingredient__nom']
+
+class EtapeLivraisonInline(admin.TabularInline):
+    model = EtapeLivraison
+    extra = 0
+    fields = ['ordre', 'client', 'actif', 'groupe']
+    readonly_fields = ['client']
+    ordering = ['ordre']
+    show_change_link = False
+    can_delete = False
+
+from .models import PlanLivraisonPrincipal
+
+@admin.register(PlanLivraisonPrincipal, site=admin_site)
+class PlanLivraisonPrincipalAdmin(admin.ModelAdmin):
+    inlines = [EtapeLivraisonInline]
+    list_display = ['nom']
 

@@ -26,9 +26,9 @@ class Jour(models.Model):
 
 class Ingredient(models.Model):
     nom = models.CharField(max_length=100)
-    quantite_stock = models.FloatField()
+    quantite_stock = models.DecimalField(max_digits=10, decimal_places=2)
     unite = models.CharField(max_length=20)
-    seuil_minimum = models.FloatField()
+    seuil_minimum = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
         return self.nom
@@ -41,7 +41,7 @@ class Produit(models.Model):
     ]
 
     nom = models.CharField(max_length=100)
-    prix = models.FloatField()
+    prix = models.DecimalField(max_digits=10, decimal_places=2)
     categorie = models.CharField(max_length=20, choices=CATEGORIES, default='croissanterie')
     ingredients = models.ManyToManyField('Ingredient', through='ProduitIngredient')
 
@@ -51,7 +51,7 @@ class Produit(models.Model):
 class ProduitIngredient(models.Model):
     produit = models.ForeignKey('Produit', on_delete=models.CASCADE)
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE)
-    quantite = models.FloatField()
+    quantite = quantite = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
         return f"{self.quantite} {self.ingredient.unite} de {self.ingredient.nom} pour {self.produit.nom}"
@@ -61,7 +61,21 @@ class Client(models.Model):
     email = models.EmailField(unique=True, blank=True, null=True)
     telephone = models.CharField(max_length=15, blank=True, null=True)
     adresse = models.TextField(blank=True, null=True)
-    solde = models.FloatField(default=0.0)
+
+    livre_par_nous = models.BooleanField(
+        default=True,
+        help_text="Indique si ce client est livré par nos soins"
+    )
+
+    mode_livraison = models.CharField(
+        max_length=10,
+        choices=[('bac', 'Par bacs'), ('paquet', 'Par paquets')],
+        default='bac',
+        help_text="Méthode de livraison pour le chargement"
+    )
+
+
+    solde = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     frequence_paiement = models.CharField(
         max_length=20,
         choices=[
@@ -148,6 +162,8 @@ class CommandeProduit(models.Model):
         super().save(*args, **kwargs)
         if self.commande:
             self.commande.calculer_total()
+            if self.commande.client:
+                self.commande.client.recalculer_solde()
 
     @property
     def total_ligne(self):
@@ -160,7 +176,7 @@ class CommandeProduit(models.Model):
 class Facture(models.Model):
     commande = models.OneToOneField('Commande', on_delete=models.CASCADE, related_name='facture')
     date_facture = models.DateTimeField(default=now)
-    montant_total = models.FloatField()
+    montant_total = models.DecimalField(max_digits=10, decimal_places=2)
 
     def generer_pdf(self):
         file_name = f"Facture_{self.id}.pdf"
@@ -185,7 +201,7 @@ class Facture(models.Model):
 
 class PaiementClient(models.Model):
     client = models.ForeignKey('Client', on_delete=models.CASCADE, related_name='paiements')
-    montant = models.FloatField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
     date_paiement = models.DateField(default=now)
     mode_paiement = models.CharField(
         max_length=50,
@@ -233,8 +249,8 @@ class FactureCloturee(models.Model):
     paiements_json = models.JSONField(blank=True, null=True)
     client = models.ForeignKey('Client', on_delete=models.CASCADE, related_name='factures_cloturees')
     date_facture = models.DateTimeField(default=now)
-    montant_total_commandes = models.FloatField()
-    montant_total_paye = models.FloatField()
+    montant_total_commandes = models.DecimalField(max_digits=10, decimal_places=2)
+    montant_total_paye = models.DecimalField(max_digits=10, decimal_places=2)
     commentaire = models.TextField(blank=True, null=True)
 
     def generer_pdf(self):
@@ -273,7 +289,7 @@ class Fournisseur(models.Model):
     email = models.EmailField(blank=True, null=True)
     telephone = models.CharField(max_length=20, blank=True, null=True)
     adresse = models.TextField(blank=True, null=True)
-    solde = models.FloatField(default=0.0)
+    solde = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
     def __str__(self):
         return self.nom
@@ -287,7 +303,7 @@ class Fournisseur(models.Model):
 class FactureFournisseur(models.Model):
     fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='factures')
     date_facture = models.DateField(default=now)
-    montant_total = models.FloatField()
+    montant_total = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, null=True)
     statut = models.CharField(
         max_length=20,
@@ -301,7 +317,7 @@ class FactureFournisseur(models.Model):
 class PaiementFournisseur(models.Model):
     facture = models.ForeignKey('FactureFournisseur', on_delete=models.CASCADE, related_name='paiements')
     fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='paiements', null=True, blank=True)
-    montant = models.FloatField()
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
     date_paiement = models.DateField(default=now)
     mode_paiement = models.CharField(
         max_length=20,
@@ -326,8 +342,8 @@ class CompteFournisseur(Fournisseur):
 class FactureFournisseurCloturee(models.Model):
     fournisseur = models.ForeignKey('Fournisseur', on_delete=models.CASCADE, related_name='factures_cloturees')
     date_cloture = models.DateTimeField(default=now)
-    montant_total_factures = models.FloatField()
-    montant_total_paye = models.FloatField()
+    montant_total_factures = models.DecimalField(max_digits=10, decimal_places=2)
+    montant_total_paye = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, null=True)
     factures_json = models.JSONField(blank=True, null=True)
     paiements_json = models.JSONField(blank=True, null=True)
@@ -452,3 +468,28 @@ class IngredientAdminProxy(Ingredient):
         proxy = True
         verbose_name = "Ingrédient"
         verbose_name_plural = "🍳 Ingrédients"
+
+class PlanLivraison(models.Model):
+    nom = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nom        
+
+class EtapeLivraison(models.Model):
+    plan = models.ForeignKey(PlanLivraison, on_delete=models.CASCADE, related_name='etapes')
+    client = models.OneToOneField('Client', on_delete=models.CASCADE)
+    ordre = models.PositiveIntegerField(default=0)
+    actif = models.BooleanField(default=True)  # ← ce champ permet de désactiver sans supprimer
+    groupe = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        ordering = ['ordre']
+
+    def __str__(self):
+        return f"{self.ordre:03d} - {self.client.nom}" + (" ❌" if not self.actif else "")
+
+class PlanLivraisonPrincipal(PlanLivraison):
+    class Meta:
+        proxy = True
+        verbose_name = "Plan de livraison"
+        verbose_name_plural = "🚚 Plan de livraison"
