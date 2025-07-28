@@ -6,7 +6,7 @@ import os
 from django.conf import settings
 from django.db.models import JSONField
 from decimal import Decimal
-
+from collections import defaultdict
 
 JOUR_CHOIX = [
     ('0', 'Lundi'),
@@ -52,6 +52,8 @@ class ProduitIngredient(models.Model):
     produit = models.ForeignKey('Produit', on_delete=models.CASCADE)
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE)
     quantite = quantite = models.DecimalField(max_digits=10, decimal_places=2)
+    
+
 
     def __str__(self):
         return f"{self.quantite} {self.ingredient.unite} de {self.ingredient.nom} pour {self.produit.nom}"
@@ -61,6 +63,7 @@ class Client(models.Model):
     email = models.EmailField(unique=True, blank=True, null=True)
     telephone = models.CharField(max_length=15, blank=True, null=True)
     adresse = models.TextField(blank=True, null=True)
+    matricule_fiscale = models.CharField(max_length=100, blank=True, null=True)
 
     livre_par_nous = models.BooleanField(
         default=True,
@@ -243,6 +246,30 @@ class CompteClient(Client):
         proxy = True
         verbose_name = "Compte client"
         verbose_name_plural = "Comptes clients"
+        
+
+    def get_lignes_regroupees(self):
+        lignes = defaultdict(lambda: {"quantite": 0, "prix_unitaire": None, "total_ligne": Decimal("0.000")})
+
+        for commande in self.commandes.all():
+            for ligne in commande.commande_produits.all():
+                produit = ligne.produit.nom
+                prix = ligne.prix_unitaire if ligne.prix_unitaire is not None else ligne.produit.prix
+
+                lignes[produit]["quantite"] += ligne.quantite
+                lignes[produit]["prix_unitaire"] = prix
+                lignes[produit]["total_ligne"] += prix * ligne.quantite
+
+        return [
+            {
+                "produit": produit,
+                "quantite": data["quantite"],
+                "prix_unitaire": data["prix_unitaire"],
+                "total_ligne": data["total_ligne"]
+            }
+            for produit, data in lignes.items()
+        ]
+
 
 class FactureCloturee(models.Model):
     produits_json = models.JSONField(blank=True, null=True)
@@ -252,31 +279,93 @@ class FactureCloturee(models.Model):
     montant_total_commandes = models.DecimalField(max_digits=10, decimal_places=2)
     montant_total_paye = models.DecimalField(max_digits=10, decimal_places=2)
     commentaire = models.TextField(blank=True, null=True)
+    numero = models.CharField(max_length=20, blank=True, null=True, unique=True)
+
 
     def generer_pdf(self):
+        from weasyprint import HTML
+        from django.template.loader import render_to_string
+        from decimal import Decimal
+        import os
+
         file_name = f"FactureCloturee_{self.id}.pdf"
-        file_path = os.path.join(settings.BASE_DIR, 'factures_cloturees', file_name)
+        file_path = os.path.join(settings.BASE_DIR, 'factures', file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        produits_details = self.produits_json or []
-        paiements_details = self.paiements_json or []
+        # 1. Regrouper les produits
+        from collections import defaultdict
+        produits = defaultdict(lambda: {"quantite": 0, "prix_unitaire": 0})
+
+        for ligne in self.produits_json:
+            nom = ligne["produit"]
+            produits[nom]["quantite"] += ligne["quantite"]
+            produits[nom]["prix_unitaire"] = ligne["prix_unitaire"]
+
+        
+
+        produits_list = []
+        montant_ht = Decimal("0.000")
+
+        for nom, infos in produits.items():
+            quantite = Decimal(infos["quantite"])
+            prix = Decimal(str(infos["prix_unitaire"]))  # conversion sûre
+            total = quantite * prix
+            montant_ht += total
+            produits_list.append({
+                "nom": nom,
+                "quantite": int(quantite),
+                "prix_unitaire": prix,
+                "total": total
+            })
+
+
+        # 2. Calcul TVA si client a un matricule fiscale
+        tva = Decimal("0.000")
+        if self.client.matricule_fiscale:
+            tva = round(montant_ht * Decimal("0.19"), 3)
+            timbre = Decimal("1.000")
+            total_ttc = montant_ht + tva + timbre
+        else:
+            tva = None
+            timbre = None
+            total_ttc = montant_ht
+
+        logo_path = os.path.join(settings.BASE_DIR,"gestion", "static", "img", "logo.png")
+        logo_uri = "file:///" + logo_path.replace("\\","/")
+
+        from .models import JournalNumerotation  # en haut si pas déjà importé
+
+    # Générer un numéro si TVA applicable et pas encore défini
+        if self.client.matricule_fiscale and not self.numero:
+            annee = self.date_facture.year
+            journal, _ = JournalNumerotation.objects.get_or_create(annee=annee)
+
+            journal.dernier_numero += 1
+            journal.save()
+
+            self.numero = f"{journal.dernier_numero:05d}/{annee}"
+            self.save(update_fields=["numero"])
 
 
         context = {
-            'facture': self,
-            'client': self.client,
-            'date_facture': self.date_facture,
-            'montant_total_commandes': self.montant_total_commandes,
-            'montant_total_paye': self.montant_total_paye,
-            'commentaire': self.commentaire,
-            'produits': produits_details,
-            'paiements': paiements_details
+            "facture": self,
+            "client": self.client,
+            "produits": produits_list,
+            "montant_ht": montant_ht,
+            "tva": tva,
+            "timbre": timbre,
+            "total_ttc": total_ttc,
+            "date_livraison": self.date_facture.date(),
+            "logo_uri": logo_uri,
         }
 
-        html = render_to_string("facture_cloturee_template.html", context)
-        HTML(string=html).write_pdf(file_path)
-
+        html_content = render_to_string("facture_cloturee_template.html", context)
+        HTML(string=html_content).write_pdf(file_path)
+        
         return file_path
+
+
+
 
     def __str__(self):
         return f"Facture clôturée - {self.client.nom} ({self.date_facture.date()})"
@@ -371,6 +460,13 @@ class FactureFournisseurCloturee(models.Model):
 
     def __str__(self):
         return f"Clôture fournisseur - {self.fournisseur.nom} ({self.date_cloture.date()})"
+
+class JournalNumerotation(models.Model):
+    annee = models.PositiveIntegerField(unique=True)
+    dernier_numero = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.annee} - Dernier N°: {self.dernier_numero}"
 
 
 class ClientAdminProxy(Client):

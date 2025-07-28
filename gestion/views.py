@@ -117,18 +117,38 @@ def generer_pdf_liste_chargement(date_livraison):
 
         mode_livraison = client.mode_livraison
 
-        commandes_par_client.append({
+        ligne = {
             'client': client.nom,
             'type_livraison': mode_livraison,
             'total_articles': total_articles,
             'nb_bacs': math.ceil(total_articles / 25) if mode_livraison == 'bac' else '',
             'nb_paquets': math.ceil(total_articles / 10) if mode_livraison == 'paquet' else '',
-            'produits': [{'nom': cp.produit.nom, 'quantite': cp.quantite} for cp in produits_filtrés]
-        })
+            'produits': [
+                {
+                    'nom': cp.produit.nom,
+                    'quantite': cp.quantite,
+                    'type': mode_livraison  # on injecte le type ici
+                }
+                for cp in produits_filtrés
+            ]
+        }
+
+        commandes_par_client.append(ligne)
+
+    total_bacs = sum(l['nb_bacs'] for l in commandes_par_client if isinstance(l['nb_bacs'], int))
+    total_paquets = sum(l['nb_paquets'] for l in commandes_par_client if isinstance(l['nb_paquets'], int))
+
+    # ⬇️ Filtrage par type
+    clients_avec_bacs = [l for l in commandes_par_client if isinstance(l['nb_bacs'], int)]
+    clients_avec_paquets = [l for l in commandes_par_client if isinstance(l['nb_paquets'], int)]
 
     html = render_to_string('liste_chargement_template.html', {
         'commandes_par_client': commandes_par_client,
+        'clients_avec_bacs': clients_avec_bacs,
+        'clients_avec_paquets': clients_avec_paquets,
         'date_livraison': date_livraison,
-        'date_generation': now().strftime("%d/%m/%Y %H:%M")
+        'date_generation': now().strftime("%d/%m/%Y %H:%M"),
+        'total_bacs': total_bacs,
+        'total_paquets': total_paquets,
     })
     return HTML(string=html).write_pdf()

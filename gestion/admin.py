@@ -5,6 +5,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from io import BytesIO
 from weasyprint import HTML
 import datetime
 from django.db import models
@@ -25,7 +26,7 @@ from .models import (
     CommandeAdminProxy, CommandeModeleAdminProxy, CommandeProduitAdminProxy, CommandeModeleProduitAdminProxy,
     ProduitAdminProxy, IngredientAdminProxy
 )
-@admin.action(description="📄 Générer un seul PDF (toutes les commandes)")
+
 def generer_factures_pdf_fusionne(modeladmin, request, queryset):
     html_complet = ""
 
@@ -173,6 +174,9 @@ class CompteClientAdmin(admin.ModelAdmin):
         total_paye = sum(p.montant for p in paiements)
         reste = total_commandes - total_paye
 
+        # ✅ On ajoute ici
+        lignes_produits = client.get_lignes_regroupees()
+
         html = render_to_string("releve_client.html", {
             'client': client,
             'commandes': commandes,
@@ -180,12 +184,15 @@ class CompteClientAdmin(admin.ModelAdmin):
             'total_commandes': total_commandes,
             'total_paye': total_paye,
             'reste': reste,
+            'lignes_produits': lignes_produits,
             'date_generation': datetime.date.today()
         })
+
         pdf = HTML(string=html).write_pdf()
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename=releve_{client.nom}.pdf'
         return response
+
 
     def export_resume_clients(self, request):
         positifs = CompteClient.objects.filter(solde__gt=0)
@@ -261,7 +268,7 @@ class CompteClientAdmin(admin.ModelAdmin):
 @admin.register(CommandeAdminProxy, site=admin_site)
 class CommandeAdmin(admin.ModelAdmin):
     list_display = ['id', 'date_livraison', 'client','frequence_client', 'total', 'statut', 'is_speciale', 'generate_facture_button']
-    actions = ['generer_resume_commandes', 'generer_factures_pdf_fusionne']
+    actions = ['generer_resume_commandes', generer_factures_pdf_fusionne]
     inlines = [CommandeProduitInline]
     list_filter = [
         DateLivraisonJourFilter,
@@ -298,6 +305,7 @@ class CommandeAdmin(admin.ModelAdmin):
     generer_resume_commandes.short_description = "📦 Générer résumé PDF des commandes sélectionnées"    
 
 
+
     def save_model(self, request, obj, form, change):
         obj.finaliser_commande()
 
@@ -320,7 +328,7 @@ class CommandeAdmin(admin.ModelAdmin):
 
         with open(pdf_path, 'rb') as f:
             response = HttpResponse(f.read(), content_type='application/pdf')
-            response['Content-Disposition'] = f'inline; filename="facture_{facture.id}.pdf"'
+            response['Content-Disposition'] = f'attachment; filename="facture_{facture.id}.pdf"'
 
             return response
 
@@ -384,10 +392,34 @@ class FactureFournisseurAdmin(admin.ModelAdmin):
 @admin.register(FactureClotureeAdminProxy, site=admin_site)
 class FactureClotureeAdmin(admin.ModelAdmin):
     actions = ['exporter_selection_pdf']
-    list_display = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'export_pdf_button']
+    list_display = ['client', 'date_facture','numero', 'montant_total_commandes', 'montant_total_paye', 'export_pdf_button']
     search_fields = ['client__nom']
     list_filter = ['date_facture']
-    readonly_fields = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'commentaire']
+    
+    fieldsets = (
+        (None, {
+            'fields': (
+                'client',
+                'date_facture',
+                'numero',  # 🔹 On affiche ici
+                'commentaire',
+            )
+        }),
+        ("Détails", {
+            'fields': (
+            'montant_total_commandes',
+            'montant_total_paye',
+             )
+        }),
+    )
+
+
+    #securiser le num de facture
+    def get_readonly_fields(self, request, obj=None):
+        base = ['client', 'date_facture', 'montant_total_commandes', 'montant_total_paye', 'commentaire']
+        if obj and obj.numero:
+            return base + ['numero']
+        return base
 
     def export_pdf_button(self, obj):
         url = reverse('admin:facturecloturee_download', args=[obj.pk])
@@ -407,7 +439,7 @@ class FactureClotureeAdmin(admin.ModelAdmin):
         pdf_path = facture.generer_pdf()
         with open(pdf_path, 'rb') as f:
             return HttpResponse(f.read(), content_type='application/pdf', headers={
-                'Content-Disposition': f'inline; filename="facture_cloturee_{facture.id}.pdf"'
+                'Content-Disposition': f'attachment; filename="facture_cloturee_{facture.id}.pdf"'
 
             })
 
@@ -551,7 +583,7 @@ class FactureFournisseurClotureeAdmin(admin.ModelAdmin):
         pdf_path = facture.generer_pdf()
         with open(pdf_path, 'rb') as f:
             return HttpResponse(f.read(), content_type='application/pdf', headers={
-                'Content-Disposition': f'inline; filename="facture_fournisseur_cloturee_{facture.id}.pdf"'
+                'Content-Disposition': f'attachment; filename="facture_fournisseur_cloturee_{facture.id}.pdf"'
 
             })
         
@@ -574,7 +606,7 @@ class PaiementClientAdmin(admin.ModelAdmin):
 
 @admin.register(ClientAdminProxy, site=admin_site)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ('nom', 'livre_par_nous', 'solde', 'frequence_paiement')
+    list_display = ('nom', 'livre_par_nous', 'solde', 'frequence_paiement', 'matricule_fiscale')
     list_editable = ('livre_par_nous',)
     search_fields = ('nom',)
     list_filter = ('frequence_paiement', 'livre_par_nous')

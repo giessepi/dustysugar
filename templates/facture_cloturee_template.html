@@ -4,66 +4,83 @@
     <meta charset="UTF-8">
     <title>Facture Clôturée</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
+        body { font-family: sans-serif; margin: 40px; font-size: 14px; }
         h1 { text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #333; padding: 5px; text-align: left; }
+        th, td { padding: 8px; border: 1px solid #ccc; text-align: left; }
         .total { font-weight: bold; }
+        .right { text-align: right; }
+        .summary-table { margin-top: 30px; width: 50%; float: right; }
+        .footer {
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            right: 40px;
+            font-size: 12px;
+            color: #555;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <h1>Facture Clôturée</h1>
-    <p><strong>Client :</strong> {{ client.nom }}</p>
-    <p><strong>Date :</strong> {{ date_facture|date:'d/m/Y H:i' }}</p>
-    <p><strong>Commentaire :</strong> {{ commentaire }}</p>
+    <h1>Facture</h1>
 
-    <h2>Produits commandés</h2>
+    <p><strong>Client :</strong> {{ client.nom }}</p>
+    {% if client.matricule_fiscale %}
+    <p><strong>Matricule fiscale :</strong> {{ client.matricule_fiscale }}</p>
+    {% endif %}
+    <p><strong>Date de facturation :</strong> {{ facture.date_facture|date:"d/m/Y H:i" }}</p>
+    
+
     <table>
         <thead>
             <tr>
-                <th>Commande</th>
                 <th>Produit</th>
                 <th>Quantité</th>
                 <th>Prix unitaire</th>
                 <th>Total</th>
-                <th>Date de livraison</th>
             </tr>
         </thead>
         <tbody>
-            {% for item in produits %}
+            {% for p in produits %}
             <tr>
-                <td>#{{ item.commande_id }}</td>
-                <td>{{ item.produit }}</td>
-                <td>{{ item.quantite }}</td>
-                <td>{{ item.prix_unitaire }} TND</td>
-                <td>{{ item.total_ligne }} TND</td>
-                <td>{{ item.date_livraison|date:'d/m/Y' }}</td>
+                <td>{{ p.nom }}</td>
+                <td class="right">{{ p.quantite }}</td>
+                <td class="right">{{ p.prix_unitaire|floatformat:3 }} TND</td>
+                <td class="right">{{ p.total|floatformat:3 }} TND</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <h2>Paiements reçus</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Montant</th>
-                <th>Mode de paiement</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in paiements %}
-            <tr>
-                <td>{{ p.date }}</td>
-                <td>{{ p.montant }} TND</td>
-                <td>{{ p.mode }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+    <table class="summary-table">
+        {% if tva %}
+            <tr><td>Montant HT</td><td class="right">{{ montant_ht|floatformat:3 }} TND</td></tr>
+            <tr><td>TVA (19%)</td><td class="right">{{ tva|floatformat:3 }} TND</td></tr>
+            <tr><td>Timbre fiscal</td><td class="right">{{ timbre|floatformat:3 }} TND</td></tr>
+            <tr class="total"><td>Total TTC</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
+        {% else %}
+            <tr class="total"><td>Montant total</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
+        {% endif %}
     </table>
 
-    <h3>Total commandes : {{ montant_total_commandes }} TND</h3>
-    <h3>Total payé : {{ montant_total_paye }} TND</h3>
+
+    {% if tva > 0 %}
+    <div class="footer">
+        Dusty Sugar — MF: 1560583/K — Rue de Parfum, Aouina, 2045 Tunis<br>
+        Téléphone : +216 50 191 318
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        Dusty Sugar{% if tva %} — MF: 1560583/K{% endif %} — Rue de Parfum, Aouina, 2045 Tunis<br>
+        Téléphone : +216 50 191 318
+    </div>
+
+
+    
+
+
 </body>
 </html>
