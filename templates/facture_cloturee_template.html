@@ -24,49 +24,55 @@
     </style>
 </head>
 <body>
-    <h1>Facture</h1>
 
-    <p><strong>Client :</strong> {{ client.nom }}</p>
-    {% if client.matricule_fiscale %}
-    <p><strong>Matricule fiscale :</strong> {{ client.matricule_fiscale }}</p>
+{% if tva %}
+<div style="position: absolute; top: 40px; right: 40px;">
+    <img src="{{ logo_uri }}" alt="Logo" style="height: 90px;">
+</div>
+<h1>Facture No{{ facture.numero }}</h1>
+{% else %}
+<h1>Facture Dusty Sugar</h1>
+{% endif %}
+
+<p><strong>Client :</strong> {{ client.nom }}</p>
+{% if client.matricule_fiscale %}
+<p><strong>Matricule fiscale :</strong> {{ client.matricule_fiscale }}</p>
+{% endif %}
+<p><strong>Date de facturation :</strong> {{ facture.date_facture|date:"d/m/Y H:i" }}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Produit</th>
+            <th>Quantité</th>
+            <th>Prix unitaire</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in produits %}
+        <tr>
+            <td>{{ p.nom }}</td>
+            <td class="right">{{ p.quantite }}</td>
+            <td class="right">{{ p.prix_unitaire|floatformat:3 }} TND</td>
+            <td class="right">{{ p.total|floatformat:3 }} TND</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<table class="summary-table">
+    {% if tva %}
+        <tr><td>Montant HT</td><td class="right">{{ montant_ht|floatformat:3 }} TND</td></tr>
+        <tr><td>TVA (19%)</td><td class="right">{{ tva|floatformat:3 }} TND</td></tr>
+        <tr><td>Timbre fiscal</td><td class="right">{{ timbre|floatformat:3 }} TND</td></tr>
+        <tr class="total"><td>Total TTC</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
+    {% else %}
+        <tr class="total"><td>Montant total</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
     {% endif %}
-    <p><strong>Date de facturation :</strong> {{ facture.date_facture|date:"d/m/Y H:i" }}</p>
-    
+</table>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Produit</th>
-                <th>Quantité</th>
-                <th>Prix unitaire</th>
-                <th>Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in produits %}
-            <tr>
-                <td>{{ p.nom }}</td>
-                <td class="right">{{ p.quantite }}</td>
-                <td class="right">{{ p.prix_unitaire|floatformat:3 }} TND</td>
-                <td class="right">{{ p.total|floatformat:3 }} TND</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <table class="summary-table">
-        {% if tva %}
-            <tr><td>Montant HT</td><td class="right">{{ montant_ht|floatformat:3 }} TND</td></tr>
-            <tr><td>TVA (19%)</td><td class="right">{{ tva|floatformat:3 }} TND</td></tr>
-            <tr><td>Timbre fiscal</td><td class="right">{{ timbre|floatformat:3 }} TND</td></tr>
-            <tr class="total"><td>Total TTC</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
-        {% else %}
-            <tr class="total"><td>Montant total</td><td class="right">{{ total_ttc|floatformat:3 }} TND</td></tr>
-        {% endif %}
-    </table>
-
-
-    {% if tva > 0 %}
+{% if tva > 0 %}
     <div class="footer">
         Dusty Sugar — MF: 1560583/K — Rue de Parfum, Aouina, 2045 Tunis<br>
         Téléphone : +216 50 191 318
@@ -77,9 +83,6 @@
         Dusty Sugar{% if tva %} — MF: 1560583/K{% endif %} — Rue de Parfum, Aouina, 2045 Tunis<br>
         Téléphone : +216 50 191 318
     </div>
-
-
-    
 
 
 </body>
